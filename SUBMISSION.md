@@ -134,9 +134,7 @@ every 10s using `prometheus/prometheus.yml`; alert rules live in
 
 ## 4. Jenkins pipeline screenshot
 
-[JENKINS PIPELINE SCREENSHOT]
-
-*(Insert the Stage View screenshot of a full green run of all 7 stages here.)*
+![Jenkins Pipeline](./jenkins_pipeline.png)
 
 ---
 
