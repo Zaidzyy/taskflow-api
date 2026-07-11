@@ -95,6 +95,18 @@ on any unaccepted CRITICAL vulnerability. Accepted/justified exceptions are
 documented in `.trivyignore` (each requires a written justification), demonstrating
 "issues fixed, justified, or documented with mitigation." Both reports are archived.
 
+**Deliberate security trade-off (Docker socket + root agent).** The pipeline builds
+images, scans them, and deploys via docker-compose by mounting the host Docker
+socket into the Jenkins container and running the agent as `root`. This is a
+conscious decision, not an oversight: on Docker Desktop the socket is owned by root,
+and socket access grants root-equivalent control of the host Docker daemon — so any
+pipeline code could, in principle, control the host. That is acceptable here because
+this is a **local dev pipeline** where the `Jenkinsfile` is trusted and the daemon
+runs on the same developer machine. In a production/multi-tenant setting I would
+instead use a **rootless agent**, a **Docker-in-Docker sidecar with its own daemon**,
+or a **daemonless image builder such as Kaniko/Buildah**, and scope the agent with
+least privilege (dedicated credentials, no host-socket mount).
+
 ### 5. Deploy (Staging) — *Docker Compose*
 Runs `docker compose up -d --build`, bringing up the API alongside Prometheus on a
 shared network. It injects the staging `API_KEY` from the Jenkins credential

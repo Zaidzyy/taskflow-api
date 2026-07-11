@@ -41,26 +41,60 @@ The image in `jenkins/Dockerfile` bakes in everything the pipeline needs
 (docker CLI, Node 20, Trivy, sonar-scanner, plugins) so no tool has to be
 installed at runtime.
 
+### Windows / Docker Desktop (WSL2) — default path
+
+On Docker Desktop the socket inside the container is owned by **root (GID 0)**, so
+the `DOCKER_GID` group trick does **not** work — the Jenkins user ends up unable to
+use the socket. The reliable path on Windows is to **run the Jenkins container as
+`root`** (`-u root`) so it can talk to the mounted socket.
+
+Run each command as a **single line** in PowerShell (PowerShell does not support
+`\` line continuations):
+
+```powershell
+docker build -t taskflow-jenkins jenkins/
+```
+
+```powershell
+docker run -d --name jenkins -u root -p 8080:8080 -p 50000:50000 -v jenkins_home:/var/jenkins_home -v //var/run/docker.sock:/var/run/docker.sock taskflow-jenkins
+```
+
+> The leading `//` in `//var/run/docker.sock` is intentional on Windows — it stops
+> Git Bash / MSYS from rewriting the path. In PowerShell it is harmless.
+
+Get the initial admin password and finish first-run setup at http://localhost:8080 :
+
+```powershell
+docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+```
+
+Install **suggested plugins** (the pipeline-specific ones are already baked in).
+
+> **Security note:** mounting the host Docker socket and running the agent as root
+> gives the pipeline root-equivalent control of your host Docker daemon. That is an
+> accepted trade-off for a trusted local dev pipeline — see the discussion in
+> `SUBMISSION.md`.
+
+### Linux — alternative (rootless-friendly)
+
+On a native Linux host the socket is group-owned by the host `docker` group, so you
+can grant access by matching that GID instead of running as root. Build with the
+`DOCKER_GID` build-arg set to your host's docker group id:
+
 ```bash
-# Find your host docker group id (used so Jenkins can use the socket):
-getent group docker | cut -d: -f3        # e.g. 999  (WSL2)
+# Find your host docker group id:
+getent group docker | cut -d: -f3        # e.g. 999
 
 docker build -t taskflow-jenkins --build-arg DOCKER_GID=<gid-from-above> jenkins/
 
 docker run -d --name jenkins \
   -p 8080:8080 -p 50000:50000 \
   -v jenkins_home:/var/jenkins_home \
-  -v //var/run/docker.sock:/var/run/docker.sock \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   taskflow-jenkins
 ```
 
-Get the initial admin password and finish first-run setup at http://localhost:8080 :
-
-```bash
-docker exec jenkins cat /var/jenkins_home/secrets/initialAdminPassword
-```
-
-Install **suggested plugins** (the pipeline-specific ones are already baked in).
+Then get the admin password and install suggested plugins as above.
 
 ---
 
@@ -170,8 +204,23 @@ Nothing secret is committed to the repo — every credential is injected at runt
 
 ## Troubleshooting
 
-- **`docker: permission denied` in a stage** → the `DOCKER_GID` build-arg didn't
-  match your host docker group; rebuild the Jenkins image with the correct GID.
+- **`permission denied while trying to connect to the Docker daemon socket at
+  unix:///var/run/docker.sock`** (Build stage, Windows/Docker Desktop) → the socket
+  inside the container is owned by root, not the `docker` group, so the `DOCKER_GID`
+  approach can't grant access. Confirm with:
+  ```powershell
+  docker exec jenkins stat -c '%g' /var/run/docker.sock   # prints 0 (root) on Docker Desktop
+  ```
+  Fix: recreate the Jenkins container with **`-u root`** (see the Windows path in
+  step 2). On native Linux, use the `DOCKER_GID` alternative with the correct GID.
+- **`fatal: not in a git directory`** at SCM checkout (after switching to `-u root`)
+  → the existing workspace `.git` was created by the old `jenkins` user, and git now
+  refuses it as an unsafe directory. Fix:
+  ```powershell
+  docker exec jenkins rm -rf /var/jenkins_home/workspace/taskflow-api
+  docker exec jenkins git config --global --add safe.directory '*'
+  ```
+  Then re-run the build (a fresh checkout is created).
 - **Quality Gate hangs then times out** → the Sonar webhook (step 3.4) is missing
   or points at the wrong URL. Fix the webhook, or set `RUN_QUALITY_GATE=false`.
 - **Monitoring stage says target not up** → give Prometheus one scrape interval
