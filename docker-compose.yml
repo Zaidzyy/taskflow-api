@@ -28,13 +28,18 @@ services:
       - taskflow-net
 
   prometheus:
-    image: prom/prometheus:v2.54.1
+    # Config + alert rules are baked into a small custom image (see
+    # prometheus/Dockerfile) rather than bind-mounted. This is required for the
+    # Jenkins Deploy stage — where `docker compose` runs inside the Jenkins
+    # container but the daemon runs on the host — because a build context is
+    # streamed to the daemon while a bind mount is (wrongly) resolved against the
+    # host filesystem. No bind mounts here, so nothing to mis-resolve.
+    build:
+      context: ./prometheus
+    image: taskflow-prometheus:${IMAGE_TAG:-staging}
     container_name: taskflow-prometheus
     depends_on:
       - taskflow-api
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
     ports:

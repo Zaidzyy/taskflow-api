@@ -177,9 +177,17 @@ Docker Compose · Jenkins · SonarQube · Trivy · Prometheus.
 ```
 src/            Express app (routes → services → repository), config, metrics
 test/           Jest unit + Supertest integration tests
-prometheus/     Prometheus scrape config + alert rules
+prometheus/     Prometheus scrape config + alert rules, baked into a small image
+                via prometheus/Dockerfile (no bind mounts — see note below)
 jenkins/        Custom Jenkins controller image (see SETUP.md)
 Dockerfile      Multi-stage build for the API image
 docker-compose.yml   API + Prometheus staging stack
 Jenkinsfile     7-stage CI/CD pipeline
 ```
+
+> **Note:** the Prometheus config and alert rules are **baked into a custom image**
+> (`prometheus/Dockerfile`) rather than bind-mounted, so the stack deploys
+> identically whether `docker compose` runs on your machine or inside the Jenkins
+> container (the daemon-vs-host path mismatch that breaks bind mounts is avoided).
+> `docker compose up --build` builds it automatically; if you edit
+> `prometheus/*.yml`, re-run with `--build` to pick up the change.
