@@ -106,7 +106,24 @@ tags local and logs that no registry was found (documented behaviour, not a sile
 
 ---
 
-## 6. Create the pipeline job
+## 6. Register the SonarQube server in Jenkins
+
+The Code Quality stage runs the scanner inside `withSonarQubeEnv('SonarQube')` so
+the SonarQube Scanner plugin records the analysis task id — which the **Quality
+Gate** stage needs. Register a SonarQube server whose **name matches exactly**:
+
+**Manage Jenkins → System → SonarQube servers → Add SonarQube**
+- **Name:** `SonarQube`  *(must match `withSonarQubeEnv('SonarQube')` exactly)*
+- **Server URL:** `http://host.docker.internal:9000`
+- **Server authentication token:** select the **`sonar-token`** credential (from step 5)
+
+> Skip this (or misname the server) and the Quality Gate stage fails with
+> *"No previous SonarQube analysis found on this pipeline execution."*
+> The SonarQube Scanner for Jenkins plugin is already baked into the controller image.
+
+---
+
+## 7. Create the pipeline job
 
 1. **New Item → Pipeline**, name it `taskflow-api`.
 2. **Pipeline → Definition:** *Pipeline script from SCM*.
@@ -116,7 +133,7 @@ tags local and logs that no registry was found (documented behaviour, not a sile
 
 ---
 
-## 7. Run it
+## 8. Run it
 
 Click **Build with Parameters** and accept the defaults:
 

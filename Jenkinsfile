@@ -102,12 +102,24 @@ pipeline {
     stage('Code Quality') {
       steps {
         echo '== Code Quality: SonarQube analysis =='
-        withCredentials([string(credentialsId: 'sonar-token', variable: 'SONAR_TOKEN')]) {
+        // The analysis MUST run inside withSonarQubeEnv so the SonarQube Scanner
+        // plugin records the report-task.txt (the analysis task id). Without it,
+        // the later waitForQualityGate step fails with "No previous SonarQube
+        // analysis found on this pipeline execution".
+        //
+        // withSonarQubeEnv('SonarQube') injects, from the Jenkins "SonarQube"
+        // server config (which references the 'sonar-token' credential):
+        //   SONAR_HOST_URL   - the server URL
+        //   SONAR_AUTH_TOKEN - the auth token from the sonar-token credential
+        // The SONAR_HOST_URL build parameter should match that server URL; we
+        // echo it so the expected value is visible in the build log.
+        withSonarQubeEnv('SonarQube') {
           sh '''
             set -euo pipefail
+            echo "Configured SONAR_HOST_URL parameter: ${SONAR_HOST_URL}"
             sonar-scanner \
               -Dsonar.host.url=${SONAR_HOST_URL} \
-              -Dsonar.token=${SONAR_TOKEN} \
+              -Dsonar.token=${SONAR_AUTH_TOKEN} \
               -Dsonar.projectVersion=${APP_VERSION}
           '''
         }
