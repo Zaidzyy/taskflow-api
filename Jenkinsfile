@@ -25,6 +25,8 @@ pipeline {
       description: 'Prometheus base URL (host-published port of the docker-compose stack).')
     string(name: 'APP_URL', defaultValue: 'http://host.docker.internal:3000',
       description: 'Staging app base URL as seen from the Jenkins agent.')
+    booleanParam(name: 'PUSH_GIT_TAG', defaultValue: false,
+      description: 'Also push the release git tag to origin so it appears on GitHub (requires a username/password credential with id "github-token", e.g. a Personal Access Token).')
   }
 
   environment {
@@ -232,12 +234,49 @@ pipeline {
           } > ${ARTIFACT_DIR}/RELEASE-${APP_VERSION}.txt
         '''
         // Create an annotated, versioned git tag for the release.
+        // The Jenkins container has no git identity, so 'git tag -a' would fail
+        // with "Committer identity unknown". We set an identity inline and
+        // honestly distinguish three outcomes: created / already-exists / failed.
         script {
-          def tag = "v${APP_VERSION}"
-          sh """
-            git tag -a ${tag} -m 'Automated release ${tag} (${GIT_SHA})' || echo 'tag exists, skipping'
-          """
-          echo "Tagged release ${tag}"
+          def tag = "v${env.APP_VERSION}"
+          // Sentinel exit code 42 == "tag already exists" (a non-error skip).
+          def rc = sh(returnStatus: true, script: """
+            set -eu
+            if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null 2>&1; then
+              echo "Git tag ${tag} already exists — leaving it untouched."
+              exit 42
+            fi
+            git -c user.email='jenkins@taskflow.ci' -c user.name='TaskFlow CI' \\
+                tag -a "${tag}" -m "Automated release ${tag} (${env.GIT_SHA})"
+            echo "Created annotated git tag ${tag}."
+          """)
+          if (rc == 0) {
+            echo "Tagged release ${tag}."
+          } else if (rc == 42) {
+            echo "Release tag ${tag} was already present; not re-created."
+          } else {
+            error "Release stage FAILED: could not create git tag ${tag} (git exit code ${rc})."
+          }
+
+          // Optionally publish the tag to GitHub. Off by default so a missing
+          // GitHub credential never blocks a green run; when on, it fails loudly
+          // if the push does not succeed.
+          if (params.PUSH_GIT_TAG) {
+            withCredentials([usernamePassword(credentialsId: 'github-token',
+                usernameVariable: 'GIT_USER', passwordVariable: 'GIT_TOKEN')]) {
+              sh '''
+                set -eu
+                # One-shot credential helper feeds the token to git over HTTPS
+                # without rewriting the origin URL. Jenkins masks the token in logs.
+                git -c credential.helper='!f() { echo "username=${GIT_USER}"; echo "password=${GIT_TOKEN}"; }; f' \\
+                    push origin "v${APP_VERSION}"
+                echo "Pushed tag v${APP_VERSION} to origin — visible on GitHub."
+              '''
+            }
+          } else {
+            echo "PUSH_GIT_TAG=false: tag ${tag} kept local. Enable PUSH_GIT_TAG " +
+                 "(needs a 'github-token' credential) to publish it to GitHub."
+          }
         }
       }
       post {

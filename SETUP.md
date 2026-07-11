@@ -99,10 +99,12 @@ tags local and logs that no registry was found (documented behaviour, not a sile
 |---------------|---------------------|-----------------------------------------------------------|
 | Secret text   | `sonar-token`       | The SonarQube token from step 3. **← plug in your token** |
 | Secret text   | `taskflow-api-key`  | Any strong string, e.g. `staging-secret-123`. This becomes the app's `X-API-Key` in staging. |
+| Username with password | `github-token` | **Optional.** Only needed if you set `PUSH_GIT_TAG=true` to publish the release tag to GitHub. Username = your GitHub username, password = a Personal Access Token with `repo` scope. |
 
-> These IDs are referenced by name in the `Jenkinsfile`. If a credential is
-> missing, the relevant stage **fails loudly** with a "credential not found"
-> error rather than skipping.
+> The `sonar-token` and `taskflow-api-key` IDs are referenced by name in the
+> `Jenkinsfile`; if either is missing, the relevant stage **fails loudly** with a
+> "credential not found" error rather than skipping. `github-token` is only read
+> when `PUSH_GIT_TAG=true`, so you can skip it otherwise.
 
 ---
 
@@ -143,6 +145,7 @@ Click **Build with Parameters** and accept the defaults:
 | `SONAR_HOST_URL`   | `http://host.docker.internal:9000`   | If SonarQube runs elsewhere.            |
 | `PROMETHEUS_URL`   | `http://host.docker.internal:9090`   | If Prometheus is remapped.              |
 | `APP_URL`          | `http://host.docker.internal:3000`   | If the app port is remapped.            |
+| `PUSH_GIT_TAG`     | `false`                              | Set `true` to also push the release tag `v1.0.<build>` to GitHub (needs the `github-token` credential). Left local by default. |
 
 **Expected result:** all 7 stages (plus Checkout + Quality Gate) go green, and the
 `taskflow-api` + `taskflow-prometheus` containers stay up for the demo/screenshot.
@@ -159,6 +162,7 @@ Click **Build with Parameters** and accept the defaults:
 | `<your-username>` repo URL      | git remote / job SCM      | Your GitHub repo                          |
 | Sonar webhook URL               | SonarQube admin           | `http://host.docker.internal:8080/sonarqube-webhook/` |
 | `REGISTRY` (`localhost:5000`)   | `Jenkinsfile` env         | Only if pushing releases to a registry   |
+| `github-token`                  | Jenkins credential        | Only if `PUSH_GIT_TAG=true` — GitHub username + PAT (`repo` scope) |
 
 Nothing secret is committed to the repo — every credential is injected at runtime.
 
