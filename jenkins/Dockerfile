@@ -7,7 +7,7 @@ FROM jenkins/jenkins:lts-jdk17
 USER root
 
 ARG NODE_MAJOR=20
-ARG TRIVY_VERSION=0.55.0
+ARG TRIVY_VERSION=0.72.0
 ARG SONAR_SCANNER_VERSION=6.2.1.4610
 
 # Base tooling: docker CLI, compose plugin, curl, git, unzip, jq.
@@ -29,11 +29,12 @@ RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
   && apt-get install -y --no-install-recommends nodejs \
   && rm -rf /var/lib/apt/lists/*
 
-# Trivy (image + dependency scanning).
-RUN curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
-      -o /tmp/trivy.tar.gz \
-  && tar -xzf /tmp/trivy.tar.gz -C /usr/local/bin trivy \
-  && rm /tmp/trivy.tar.gz \
+# Trivy (image + dependency scanning) — installed via the official install
+# script, which auto-detects arch and verifies the download's SHA-256 checksum.
+# This is more robust than pinning a single-arch tarball URL. Version is pinned
+# for reproducibility (v0.72.0 verified to exist on the aquasecurity/trivy repo).
+RUN curl -sfL "https://raw.githubusercontent.com/aquasecurity/trivy/v${TRIVY_VERSION}/contrib/install.sh" \
+      | sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}" \
   && trivy --version
 
 # SonarScanner CLI (code quality analysis).
