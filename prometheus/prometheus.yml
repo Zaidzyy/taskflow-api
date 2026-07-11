@@ -1,0 +1,24 @@
+# Prometheus scrape + alerting configuration for TaskFlow API.
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+# Load alerting rules from a separate file (see alert.rules.yml).
+rule_files:
+  - /etc/prometheus/alert.rules.yml
+
+scrape_configs:
+  # Scrape the API's /metrics endpoint. The target uses the compose service
+  # name, which resolves on the shared 'taskflow-net' docker network.
+  - job_name: taskflow-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["taskflow-api:3000"]
+        labels:
+          service: taskflow-api
+          env: staging
+
+  # Prometheus scraping itself, useful for verifying the stack is alive.
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

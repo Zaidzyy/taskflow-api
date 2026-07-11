@@ -1,0 +1,43 @@
+# Alerting rules evaluated by Prometheus against TaskFlow API metrics.
+# In a full setup these fire to Alertmanager, which routes to Slack/email/PagerDuty.
+groups:
+  - name: taskflow-api-availability
+    rules:
+      # Fires when Prometheus cannot scrape the API (process down / crash-looping).
+      - alert: TaskFlowApiDown
+        expr: up{job="taskflow-api"} == 0
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "TaskFlow API is down"
+          description: "Prometheus has failed to scrape taskflow-api for over 30s."
+
+  - name: taskflow-api-latency-errors
+    rules:
+      # High rate of 5xx responses indicates the service is erroring.
+      - alert: TaskFlowApiHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{status=~"5.."}[1m]))
+            /
+          sum(rate(http_requests_total[1m])) > 0.05
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Elevated 5xx error rate on TaskFlow API"
+          description: "More than 5% of requests are returning 5xx over the last minute."
+
+      # p95 latency SLO breach based on the request-duration histogram.
+      - alert: TaskFlowApiHighLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "TaskFlow API p95 latency is high"
+          description: "95th percentile request latency has exceeded 500ms for 2 minutes."

@@ -1,0 +1,48 @@
+# Staging environment used by the Jenkins "Deploy" stage.
+# Brings up the API together with a Prometheus instance that scrapes it,
+# giving us a working end-to-end monitoring setup on one command.
+services:
+  taskflow-api:
+    build:
+      context: .
+      args:
+        APP_VERSION: ${APP_VERSION:-staging}
+    image: taskflow-api:${IMAGE_TAG:-staging}
+    container_name: taskflow-api
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # In real use this comes from Jenkins credentials, not a literal value.
+      - API_KEY=${API_KEY:-staging-placeholder-key}
+      - APP_VERSION=${APP_VERSION:-staging}
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - taskflow-net
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: taskflow-prometheus
+    depends_on:
+      - taskflow-api
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert.rules.yml:/etc/prometheus/alert.rules.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    networks:
+      - taskflow-net
+
+networks:
+  taskflow-net:
+    driver: bridge

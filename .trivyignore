@@ -1,0 +1,8 @@
+# Trivy ignore file — documented, justified vulnerability exceptions.
+#
+# Format: one CVE ID per line. Only add a CVE here after reviewing it and
+# deciding it is a false positive or an accepted risk (e.g. not reachable in
+# our code path). Each entry MUST have a justification comment.
+#
+# Example (leave commented until a real, reviewed case exists):
+# CVE-2024-XXXXX  # base-image OpenSSL advisory, not exploitable — no TLS server code; tracked, awaiting node:20-alpine patch.

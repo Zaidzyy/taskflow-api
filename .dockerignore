@@ -1,0 +1,12 @@
+node_modules
+coverage
+reports
+.git
+.gitignore
+*.md
+Jenkinsfile
+test
+prometheus
+docker-compose.yml
+.scannerwork
+trivy-*.json

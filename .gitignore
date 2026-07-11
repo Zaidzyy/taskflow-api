@@ -1,0 +1,10 @@
+node_modules/
+coverage/
+dist/
+*.log
+.env
+.DS_Store
+# Jenkins/pipeline scratch output
+reports/
+trivy-*.json
+.scannerwork/
